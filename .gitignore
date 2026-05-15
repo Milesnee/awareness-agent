@@ -11,3 +11,6 @@ data/users/*/profile.json
 data/users/*/insights/
 .env
 *.tar.gz
+
+# 非觉察助手文件
+dist/capital-cycle*

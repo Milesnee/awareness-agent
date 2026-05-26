@@ -1,0 +1,48 @@
+{
+  "user_id": "ou_3930d3b48c94a56b47a907f89224c863",
+  "created": "2026-05-11T10:45:26.990475",
+  "persona": {
+    "nickname": "老麦",
+    "life_context": "独立开发者 & 创业者，上海，数据全栈背景，公众号「老麦茶馆」作者，当前项目：论文/AI Agent产品/量化交易/可穿戴情绪感知",
+    "communication_style": "简洁直接，口语化"
+  },
+  "perma_baseline": {
+    "P_positive_emotion": {
+      "score": null
+    },
+    "E_engagement": {
+      "score": null
+    },
+    "R_relationships": {
+      "score": null
+    },
+    "M_meaning": {
+      "score": null
+    },
+    "A_accomplishment": {
+      "score": null
+    }
+  },
+  "character_strengths": {
+    "signature": [],
+    "top_5": [],
+    "usage_count": {
+      "自我觉察": 1
+    }
+  },
+  "progress": {
+    "total_sessions": 1,
+    "total_mornings": 1,
+    "total_evenings": 0,
+    "current_streak": 1,
+    "longest_streak": 1,
+    "milestones_unlocked": [
+      "sprout"
+    ],
+    "last_active_date": "2026-05-11"
+  },
+  "preferences": {
+    "morning_remind_time": "08:00",
+    "evening_remind_time": "21:30"
+  }
+}

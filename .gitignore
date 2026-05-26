@@ -5,7 +5,13 @@ data/profiles/
 data/streaks/
 data/stats/
 data/sessions/
-*.log
-.env
 data/daily_context/
 data/tasks/
+data/users/*/journals/
+data/users/*/sessions/
+data/users/*/stats/
+data/users/*/profile.json
+data/users/*/insights/
+.env
+*.log
+*.tar.gz

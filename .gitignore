@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+data/journals/
+data/profiles/
+data/streaks/
+data/stats/
+data/sessions/
+*.log
+.env

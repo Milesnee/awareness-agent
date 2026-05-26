@@ -32,8 +32,10 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
-WORKSPACE = Path(__file__).parent.parent.parent.parent  # workspace root
-DATA_DIR = Path(__file__).parent.parent / "data"
+WORKSPACE = Path(__file__).resolve().parent.parent.parent  # workspace root (awareness-agent/..)
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+CONTEXT_DIR = DATA_DIR / "daily_context"
+JOURNALS_DIR = DATA_DIR / "journals"
 
 # 数据源路径
 MEMORY_DIR = WORKSPACE / "memory"
@@ -41,12 +43,8 @@ PRODUCTIVITY_DIR = MEMORY_DIR / "agent-productivity"
 HEARTBEAT_FILE = WORKSPACE / "HEARTBEAT.md"
 
 
-def get_user_dir(user_id: str) -> Path:
-    return DATA_DIR / "users" / user_id
-
-
-def get_journal_path(user_id: str, date_str: str) -> Path:
-    return get_user_dir(user_id) / "journals" / f"{date_str}.json"
+def get_context_path(user_id: str, date_str: str) -> Path:
+    return CONTEXT_DIR / user_id / f"{date_str}.json"
 
 
 def extract_from_daily_memory(date_str: str) -> dict:
@@ -135,16 +133,31 @@ def extract_from_productivity(date_str: str) -> dict:
 
 
 def extract_from_awareness_sessions(user_id: str, date_str: str) -> dict:
-    """从觉察助手 sessions 记录提取"""
-    path = get_user_dir(user_id) / "sessions" / f"{date_str}.json"
-    if not path.exists():
+    """从觉察助手 journals 读取当日觉察记录（新原语格式）"""
+    user_journal_dir = JOURNALS_DIR / user_id
+    if not user_journal_dir.exists():
         return {"source": "awareness_sessions", "available": False}
 
-    with open(path) as f:
-        data = json.load(f)
+    morning_path = user_journal_dir / f"{date_str}_morning.json"
+    evening_path = user_journal_dir / f"{date_str}_evening.json"
 
-    sessions = data.get("sessions", [])
-    summary = {
+    sessions = []
+    for period_path, period_name in [(morning_path, "morning"), (evening_path, "evening")]:
+        if period_path.exists():
+            with open(period_path) as f:
+                data = json.load(f)
+            meta = data.get("session_meta", {})
+            sessions.append({
+                "period": period_name,
+                "duration_seconds": meta.get("duration_seconds", 0),
+                "trigger": meta.get("trigger", "unknown"),
+                "rounds": meta.get("rounds", 0),
+            })
+
+    if not sessions:
+        return {"source": "awareness_sessions", "available": False}
+
+    return {
         "source": "awareness_sessions",
         "available": True,
         "total_sessions": len(sessions),
@@ -152,8 +165,6 @@ def extract_from_awareness_sessions(user_id: str, date_str: str) -> dict:
         "total_duration_seconds": sum(s.get("duration_seconds", 0) for s in sessions),
         "triggers": [s.get("trigger") for s in sessions],
     }
-
-    return summary
 
 
 def extract_from_heartbeat(date_str: str) -> dict:
@@ -217,45 +228,25 @@ def collect_daily_activity(user_id: str, date_str: str) -> dict:
         "note": "auto-collected by activity_collector.py",
     }
 
-    # 写入 journal
-    journal_path = get_journal_path(user_id, date_str)
-    if journal_path.exists():
-        with open(journal_path) as f:
-            journal = json.load(f)
-    else:
-        journal = {
-            "date": date_str,
-            "streak": 0,
-            "level": "seed",
-            "morning": {"timestamp": None, "extracted_insights": []},
-            "evening": {"timestamp": None, "extracted_insights": []},
-        }
+    # 写入 daily_context（独立文件，不侵入 journal）
+    context_path = get_context_path(user_id, date_str)
+    context_path.parent.mkdir(parents=True, exist_ok=True)
 
-    journal["daily_context"] = daily_context
-
-    get_user_dir(user_id).mkdir(parents=True, exist_ok=True)
-    (get_user_dir(user_id) / "journals").mkdir(parents=True, exist_ok=True)
-
-    with open(journal_path, "w") as f:
-        json.dump(journal, f, indent=2, ensure_ascii=False)
+    with open(context_path, "w") as f:
+        json.dump(daily_context, f, indent=2, ensure_ascii=False)
 
     return daily_context
 
 
 def show_activity(user_id: str, date_str: str):
     """查看已收集的活动"""
-    path = get_journal_path(user_id, date_str)
+    path = get_context_path(user_id, date_str)
     if not path.exists():
-        print(f"📭 {date_str} 无 journal 记录")
+        print(f"📭 {date_str} 无 daily_context，请先运行 collect")
         return
 
     with open(path) as f:
-        journal = json.load(f)
-
-    context = journal.get("daily_context")
-    if not context:
-        print(f"📭 {date_str} 无 daily_context，请先运行 collect")
-        return
+        context = json.load(f)
 
     print(f"📅 {date_str} 活动概览")
     print(f"   数据源: {', '.join(context.get('sources_available', []))}")

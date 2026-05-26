@@ -7,3 +7,5 @@ data/stats/
 data/sessions/
 *.log
 .env
+data/daily_context/
+data/tasks/

@@ -31,7 +31,8 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+TASKS_DIR = DATA_DIR / "tasks"
 
 TASK_STATUSES = ["pending", "active", "completed", "abandoned", "cycling"]
 # pending: 已创建但未激活
@@ -43,12 +44,8 @@ TASK_STATUSES = ["pending", "active", "completed", "abandoned", "cycling"]
 MAX_ACTIVE_TASKS = 3  # 最多同时 3 个活跃任务，避免压力
 
 
-def get_user_dir(user_id: str) -> Path:
-    return DATA_DIR / "users" / user_id
-
-
 def get_tasks_path(user_id: str) -> Path:
-    return get_user_dir(user_id) / "tasks.json"
+    return TASKS_DIR / f"{user_id}.json"
 
 
 def load_tasks(user_id: str) -> list:
@@ -60,7 +57,7 @@ def load_tasks(user_id: str) -> list:
 
 
 def save_tasks(user_id: str, tasks: list):
-    get_user_dir(user_id).mkdir(parents=True, exist_ok=True)
+    TASKS_DIR.mkdir(parents=True, exist_ok=True)
     with open(get_tasks_path(user_id), "w") as f:
         json.dump(tasks, f, indent=2, ensure_ascii=False)
 
@@ -198,20 +195,41 @@ def get_tasks_for_recheck(user_id: str) -> dict:
 
 
 def suggest_tasks_from_fragments(user_id: str, days: int = 14) -> list:
-    """从 knowledge_fragments 中智能提取可转化为 task 的候选项"""
-    # 需要导入 journal_manager（避免循环引用）
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "journal_manager", Path(__file__).parent / "journal_manager.py")
-    jm = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(jm)
+    """从觉察 journals 中智能提取可转化为 task 的候选项
 
-    graph = jm.get_user_knowledge_graph(user_id, days)
+    Note: 旧版依赖 journal_manager.py（已废弃）。现改用 awareness_journal_query 原语。
+    """
+    import importlib.util, subprocess, json
+
+    # 调用 awareness_journal_query 原语获取近期记录
+    query_script = Path(__file__).parent / "awareness_journal_query.py"
+    if not query_script.exists():
+        return [{"type": "error", "suggestion": "awareness_journal_query.py 不存在，无法提取建议", "priority": "low"}]
+
+    try:
+        result = subprocess.run(
+            ["python3", str(query_script)],
+            input=json.dumps({"user_id": user_id, "timespan": f"{days}d"}),
+            capture_output=True, text=True, timeout=10
+        )
+        graph = json.loads(result.stdout)
+    except Exception as e:
+        return [{"type": "error", "suggestion": f"查询失败: {e}", "priority": "low"}]
 
     suggestions = []
 
-    # 1. 反复出现的困扰 ≥ 2 次 → 建议关注
-    for concern, count in graph.get("recurring_concerns", {}).items():
+    suggestions = []
+
+    # 1. 从 rewrite events 识别反复出现的困扰
+    rewrite_events = []
+    for entry in graph.get("entries", []):
+        rw = (entry.get("extracted") or {}).get("rewrite_event")
+        if rw and rw.get("occurred"):
+            rewrite_events.append(rw.get("pattern", rw.get("description", "")))
+
+    from collections import Counter
+    concern_counts = Counter(rewrite_events)
+    for concern, count in concern_counts.items():
         if count >= 2:
             suggestions.append({
                 "type": "concern_pattern",
@@ -221,43 +239,52 @@ def suggest_tasks_from_fragments(user_id: str, days: int = 14) -> list:
                 "priority": "high" if count >= 3 else "medium",
             })
 
-    # 2. 有 deadline 的项目 → 建议创建任务
-    for name, proj in graph.get("projects_mentioned", {}).items():
-        if proj.get("deadline") and proj.get("status") not in ["完成", "已完成", "completed"]:
-            suggestions.append({
-                "type": "project_with_deadline",
-                "source": name,
-                "deadline": proj["deadline"],
-                "status": proj.get("status", "未知"),
-                "suggestion": f"'{name}' 的 deadline 是 {proj['deadline']}，当前状态 {proj.get('status','未知')}，需要计划吗？",
-                "priority": "high",
-            })
+    # 2. 从记录中提取低成就感维度 → 建议关注
+    low_perma = []
+    for entry in graph.get("entries", []):
+        perma = (entry.get("extracted") or {}).get("perma") or {}
+        for dim, score in perma.items():
+            if isinstance(score, (int, float)) and score <= 3:
+                low_perma.append({"dim": dim, "date": entry.get("date", ""), "score": score})
 
-    # 3. 未解决的开放问题 ≥ 1 个 → 建议确认
-    for q in graph.get("open_questions", []):
-        # 检查是否已经被转化为 task
-        existing_tasks = load_tasks(user_id)
-        already_task = any(q in t.get("source", {}).get("fragment", "") for t in existing_tasks)
-        if not already_task:
+    if low_perma:
+        dim_counts = Counter(d["dim"] for d in low_perma)
+        for dim, count in dim_counts.most_common(3):
             suggestions.append({
-                "type": "open_question",
-                "source": q,
-                "suggestion": f"你之前提到 '{q}'，需要确认或有行动吗？",
+                "type": "low_perma_dimension",
+                "source": dim,
+                "frequency": count,
+                "suggestion": f"PERMA 维度 '{dim}' 在 {days} 天内有 {count} 次低分（≤3），想聊聊吗？",
                 "priority": "medium",
             })
 
-    # 4. 已经做出的决策但没有后续行动
-    for d in graph.get("decisions", []):
-        existing_tasks = load_tasks(user_id)
-        already_task = any(d in t.get("source", {}).get("fragment", "") for t in existing_tasks
-                          if t["status"] in ["active", "pending"])
-        if not already_task:
+    # 3. 未完成改写事件 → 建议关注
+    no_rewrite_days = []
+    for entry in graph.get("entries", []):
+        rw = (entry.get("extracted") or {}).get("rewrite_event")
+        if not rw or not rw.get("occurred"):
+            no_rewrite_days.append(entry.get("date", ""))
+
+    if no_rewrite_days:
+        suggestions.append({
+            "type": "no_rewrite",
+            "source": f"{len(no_rewrite_days)} days without rewrite",
+            "suggestion": f"最近 {days} 天有 {len(no_rewrite_days)} 天没有记录改写事件，觉察到就好",
+            "priority": "low",
+        })
+
+    # 4. 高 flow days → 肯定并建议保持
+    for entry in graph.get("entries", []):
+        flow = (entry.get("extracted") or {}).get("flow_moments", [])
+        if flow:
             suggestions.append({
-                "type": "decision_no_followup",
-                "source": d,
-                "suggestion": f"你决定 '{d}'，有需要执行的后续动作吗？",
+                "type": "flow_moment",
+                "source": entry.get("date", ""),
+                "suggestion": f"{entry.get('date', '')} 有 {len(flow)} 个心神合一瞬间，这是你的 E 维度亮点",
                 "priority": "low",
             })
+
+    return suggestions
 
     return suggestions
 

@@ -1,7 +1,7 @@
 # 小澄觉察助手 · Awareness Guide
 
 <p align="center">
-  <b>不逃离，回来。 Don't flee. Come back.</b>
+  <b>向外看的人在做梦，向内看的人在觉醒。<br>Who looks outside, dreams; who looks inside, awakes. — Jung</b>
 </p>
 
 <p align="center">

@@ -1,21 +1,33 @@
-# 小澄觉察助手（Awareness Guide）
+# 小澄觉察助手 · Awareness Guide
 
 <p align="center">
-  <b>不逃离，回来。</b>
+  <b>不逃离，回来。 Don't flee. Come back.</b>
 </p>
 
 <p align="center">
-  <b>AI 驱动的觉察引导系统</b> — 基于积极心理学 + 中华哲学减法疗愈框架<br>
-  <a href="#理论基础">PERMA · VIA · MBCT · 庄子→清静经→王阳明</a>
+  <b>AI 觉察引导系统</b> — 积极心理学 × 中华哲学减法疗愈框架<br>
+  <b>AI Awareness Guide</b> — Positive Psychology × Eastern Philosophy Subtractive Healing
+</p>
+
+<p align="center">
+  <a href="#中文"><img src="https://img.shields.io/badge/简体中文-中文介绍-blue" alt="中文"></a>
+  <a href="#english"><img src="https://img.shields.io/badge/English-Documentation-blue" alt="English"></a>
+  <a href="https://github.com/Milesnee/awareness-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT"></a>
 </p>
 
 ---
 
 > 不是冥想 App，不是时间管理工具。帮用户逐步找到并建立稳定的内核。
-
-**小澄觉察助手**是一个零外部依赖、纯 JSON 原语架构的 AI 觉察引导系统。通过 9 个专用原语（Primitives）实现上下文感知的对话引导、结构化觉察记录、连续天数追踪和跨时段模式分析。
+>
+> Not a meditation app, not a time manager. Helping users find and build a stable inner core.
 
 底层哲学：**减法疗愈** — 不是塞更多道理，是帮用户看见遮盖住本有注意力的东西。
+
+Core philosophy: **Subtractive Healing** — not adding more theory, but helping users see what already covers their innate attention.
+
+---
+
+<a name="中文"></a>
 
 ## ✨ 特色
 
@@ -24,7 +36,7 @@
 - 🔗 **MCP 原生集成**：通过 Model Context Protocol 嵌入 Hermes Agent，即插即用
 - 📊 **PERMA + VIA 量化**：五维幸福度量 × 24 项品格优势，觉察可追踪、可回顾
 - 🎯 **四状态识别**：停不下来 / 启动不了 / 硬撑着 / 一直在找 — 自动检测 + 差异化引导
-- 🔥 **Streak 机制**：连续觉察天数追踪 + 里程碑奖励系统（种子→发芽→成长→茂盛→绽放）
+- 🔥 **Streak 机制**：连续觉察天数追踪 + 里程碑奖励（种子→发芽→成长→茂盛→绽放）
 - 📈 **周度洞察报告**：跨时段模式分析，PERMA 趋势 + 状态切换 + 改写效果 + 最小调整建议
 - 🛡️ **零外部依赖**：Python 标准库 + JSON 文件存储，部署即跑
 
@@ -103,27 +115,6 @@ echo '{"user_id":"demo","timespan":"7d"}' \
 小澄：好，这是觉察。带着它开工，不需要它消失。
 ```
 
-## 项目结构
-
-```
-awareness-agent/
-├── scripts/           # 9 个原语脚本 + MCP server
-├── data/              # 用户数据（gitignored）
-│   ├── profiles/      # 用户觉察档案
-│   ├── journals/      # 觉察日记（JSON）
-│   └── streaks/       # 连续天数追踪
-├── docs/
-│   ├── SDD.md         # 规范文档（需求/架构/验收标准）
-│   ├── IMPLEMENT.md   # 实施追踪
-│   ├── 项目介绍.md     # 产品定位
-│   └── adr/           # 架构决策记录
-├── references/
-│   ├── CONTEXT.md     # 领域术语表
-│   ├── examples.md    # 对话示例
-│   └── primitive-design.md  # 原语架构设计文档
-└── skills/            # OpenClaw / Hermes SKILL 定义
-```
-
 ## 理论基础
 
 ### 积极心理学
@@ -147,6 +138,106 @@ awareness-agent/
 | 通信协议 | MCP (Model Context Protocol) | 与 AI Agent 框架原生集成 |
 | 框架 | Hermes Agent / OpenClaw SKILL | 原语即工具，即插即用 |
 | 文档 | SDD (Specification-Driven Development) | 需求→架构→验收的完整追踪 |
+
+---
+
+<a name="english"></a>
+
+## English
+
+### ✨ Features
+
+- 🧠 **Theory Triangle**: Zhuangzi (why let go) → Jingjing Jing (how to let go) → Wang Yangming (how to act after letting go)
+- 📐 **Primitive Architecture**: 9 JSON-in/JSON-out primitives replace manual LLM file reads — deterministic behavior + high information density
+- 🔗 **Native MCP Integration**: Embeds into Hermes Agent via Model Context Protocol — plug and play
+- 📊 **PERMA + VIA Quantification**: 5-dimension well-being × 24 character strengths — awareness becomes trackable and reviewable
+- 🎯 **Four-State Detection**: Can't stop / Can't start / Pushing through / Always searching — auto-detect + differentiated guidance
+- 🔥 **Streak System**: Consecutive awareness day tracking + milestone rewards (Seed → Sprout → Growth → Flourish → Bloom)
+- 📈 **Weekly Insight Reports**: Cross-session pattern analysis — PERMA trends + state transitions + rewrite effects + minimal adjustment suggestions
+- 🛡️ **Zero Dependencies**: Python stdlib + JSON file storage, deploy and run
+
+### Core Architecture
+
+**Primitive System** — L1 Perception → L2 Action → MCP Integration
+
+| Layer | Primitive | Purpose |
+|-------|-----------|---------|
+| L1 | `awareness_profile` | Load awareness profile (PERMA baseline, signature strengths, streak) |
+| L1 | `awareness_journal_query` | Query history (PERMA trends, state sequences, rewrite events) |
+| L1 | `awareness_state_detect` | Four-state detection (Can't stop / Can't start / Pushing through / Always searching) |
+| L2 | `awareness_guide` | Context assembly + strategy decision (core guidance engine) |
+| L2 | `awareness_record` | Structured recording + streak update + profile increment |
+| L2 | `awareness_intervention` | Intervention engine (quality trend + flags + streak risk) |
+| L2 | `awareness_pattern_review` | Cross-session pattern analysis (automated weekly insight engine) |
+| L2 | `awareness_quality_score` | Session quality scoring (depth/completeness/rewrite quality/data quality/engagement) |
+| MCP | `mcp_server` | Hermes MCP integration, primitives as tools |
+
+### Quick Start
+
+```bash
+git clone https://github.com/Milesnee/awareness-agent.git
+cd awareness-agent
+
+# Get guidance context (Morning Round 1)
+echo '{"user_id":"demo","period":"morning","round":1,"user_name":"Xiaocheng"}' \
+  | python3 scripts/awareness_guide.py --demo
+
+# Load user profile
+echo '{"user_id":"demo"}' | python3 scripts/awareness_profile.py
+
+# State detection
+echo '{"text":"I procrastinated again, scrolled on my phone all morning"}' \
+  | python3 scripts/awareness_state_detect.py
+
+# View awareness trends (last 7 days)
+echo '{"user_id":"demo","timespan":"7d"}' \
+  | python3 scripts/awareness_journal_query.py
+```
+
+### Conversation Example
+
+```
+[Morning Guidance] 🌅 Round 1/5
+
+Xiaocheng: Good morning. What is your inner anchor today?
+
+User: I want to focus on coding, but I feel a bit anxious.
+
+Xiaocheng: I sense the anxiety. Anxiety itself is not the problem —
+your attitude toward it is what matters. What is this anxiety saying?
+Is it afraid you'll write something, or afraid you won't?
+
+User: ...afraid it won't be good enough.
+
+Xiaocheng: Good, that's awareness. Take it with you and start working.
+It doesn't need to disappear.
+```
+
+### Theoretical Foundations
+
+#### Positive Psychology
+- **PERMA Model** (Seligman, 2011) — Positive Emotion(P), Engagement(E), Relationships(R), Meaning(M), Accomplishment(A)
+- **VIA Character Strengths** (Peterson & Seligman, 2004) — Classification and measurement of 24 character strengths
+
+#### Cognitive Science
+- **MBCT (Mindfulness-Based Cognitive Therapy)** — Neural rewriting in 3 steps: Activate → Rewrite → Repeat
+
+#### Eastern Philosophy · Subtractive Healing Theory Triangle
+- **Zhuangzi** — Why let go (Qi Wu Lun, "the usefulness of the useless")
+- **Jingjing Jing (Classic of Purity and Stillness)** — How to let go (contemplating emptiness, "observe the mind, the mind has no self")
+- **Wang Yangming** — How to act after letting go (extending innate knowing, "unity of knowledge and action")
+
+### Tech Stack
+
+| Component | Choice | Rationale |
+|-----------|--------|-----------|
+| Runtime | Python 3 stdlib | Zero external deps, minimal deployment |
+| Storage | JSON files | Local-first, privacy-friendly |
+| Protocol | MCP (Model Context Protocol) | Native integration with AI Agent frameworks |
+| Framework | Hermes Agent / OpenClaw SKILL | Primitives as tools, plug and play |
+| Docs | SDD (Specification-Driven Development) | Full traceability: requirements → architecture → acceptance |
+
+---
 
 ## License
 

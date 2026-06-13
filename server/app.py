@@ -14,7 +14,6 @@ from fastapi import BackgroundTasks, FastAPI, Query, Request, Response
 import asyncio
 
 from . import orchestrator, scheduler, store, voice, wechat
-from .config import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("app")
@@ -42,31 +41,18 @@ async def inbound(request: Request, background: BackgroundTasks,
                   nonce: str = Query(""),
                   encrypt_type: str = Query(""),
                   msg_signature: str = Query("")):
+    if not wechat.verify_signature(signature, timestamp, nonce):
+        return Response(content="forbidden", status_code=403)
+
     body = await request.body()
 
-    # 调试日志
-    log.info(f"Received wechat request: encrypt_type={encrypt_type}, signature_len={len(signature)}, msg_signature_len={len(msg_signature)}")
-    log.info(f"Body length: {len(body)}, body preview: {body.decode()[:100] if body else 'empty'}")
-
-    # 安全模式/兼容模式：先解密
-    is_encrypted = encrypt_type.lower() == "aes"
-    if is_encrypted:
-        log.info(f"Processing encrypted message, token={settings.wechat_token}")
-        if not wechat.verify_msg_signature(msg_signature, settings.wechat_token,
-                                            timestamp, nonce, body.decode()):
-            log.error(f"Signature verification failed for encrypted message")
-            return Response(content="forbidden", status_code=403)
+    # AES 加密模式：先解密再解析 XML
+    if encrypt_type == "aes":
         try:
-            xml_text = wechat.decrypt_aes(body.decode(), settings.wechat_appid)
-            body = xml_text.encode("utf-8")
-            log.info(f"Successfully decrypted message, xml preview: {xml_text[:100]}")
+            body = wechat.decrypt_message(body, msg_signature, timestamp, nonce)
         except Exception as e:
-            log.error(f"Decryption failed: {e}")
-            return Response(content="decryption_error", status_code=500)
-    else:
-        if not wechat.verify_signature(signature, timestamp, nonce):
-            log.error(f"Signature verification failed for plain message")
-            return Response(content="forbidden", status_code=403)
+            log.error("AES 解密失败: %s", e)
+            return Response(content="success", media_type="text/plain")
 
     msg = wechat.parse_xml(body)
 
@@ -77,12 +63,11 @@ async def inbound(request: Request, background: BackgroundTasks,
     # 关注事件：同步回欢迎语
     if msg.msg_type == "event":
         if msg.event.lower() == "subscribe":
-            welcome = orchestrator.welcome_message()
-            if is_encrypted:
-                xml = wechat.build_encrypted_reply(msg.from_user, msg.to_user, welcome, nonce)
-            else:
-                xml = wechat.build_text_reply(msg.from_user, msg.to_user, welcome)
-            return Response(content=xml, media_type="application/xml")
+            reply_xml = wechat.build_text_reply(msg.from_user, msg.to_user,
+                                                orchestrator.welcome_message())
+            if encrypt_type == "aes":
+                reply_xml = wechat.encrypt_message(reply_xml, nonce, timestamp)
+            return Response(content=reply_xml, media_type="application/xml")
         return Response(content="success", media_type="text/plain")
 
     # 文本消息：立即确认，后台生成并经客服消息下发
@@ -90,35 +75,17 @@ async def inbound(request: Request, background: BackgroundTasks,
         background.add_task(_process_and_reply, msg.from_user, msg.content)
         return Response(content="success", media_type="text/plain")
 
-    # 语音消息：转写后走同一编排，回复语音+文字
+    # 语音消息：识别后按文本处理
     if msg.msg_type == "voice":
-        background.add_task(_process_voice, msg.from_user, msg.recognition, msg.media_id)
+        background.add_task(_process_voice_message, msg.from_user, msg.recognition, msg.media_id)
         return Response(content="success", media_type="text/plain")
 
-    # 其他类型暂不支持
-    if is_encrypted:
-        xml = wechat.build_encrypted_reply(msg.from_user, msg.to_user,
-                                           "图片我还看不懂，先用文字或语音聊吧 🙂", nonce)
-    else:
-        xml = wechat.build_text_reply(msg.from_user, msg.to_user,
-                                      "图片我还看不懂，先用文字或语音聊吧 🙂")
-    return Response(content=xml, media_type="application/xml")
-
-
-async def _process_voice(openid: str, recognition: str, media_id: str) -> None:
-    log.info("语音消息 openid=%s recognition=%r media_id=%s", openid, recognition, media_id)
-    try:
-        text = await voice.transcribe(recognition, media_id)
-        log.info("转写结果 openid=%s text=%r", openid, text)
-        if not text:
-            await wechat.send_text(openid, "这条语音我没听清，再说一次，或打字也行 🙂")
-            return
-        reply = await orchestrator.handle_text(openid, text)
-        log.info("语音回复 openid=%s reply=%r", openid, reply[:80])
-        await voice.reply_with_voice(openid, reply)
-        await orchestrator.maybe_finalize(openid)
-    except Exception as e:  # noqa: BLE001
-        log.exception("语音处理失败 openid=%s: %s", openid, e)
+    # 其他类型：暂未支持
+    reply_xml = wechat.build_text_reply(msg.from_user, msg.to_user,
+                                        "现在先用文字聊吧，语音我还在学 🙂")
+    if encrypt_type == "aes":
+        reply_xml = wechat.encrypt_message(reply_xml, nonce, timestamp)
+    return Response(content=reply_xml, media_type="application/xml")
 
 
 async def _process_and_reply(openid: str, text: str) -> None:
@@ -128,6 +95,20 @@ async def _process_and_reply(openid: str, text: str) -> None:
         await orchestrator.maybe_finalize(openid)
     except Exception as e:  # noqa: BLE001
         log.exception("处理失败 openid=%s: %s", openid, e)
+
+
+async def _process_voice_message(openid: str, recognition: str, media_id: str) -> None:
+    """处理语音消息：先ASR识别，再按文本处理"""
+    try:
+        text = await voice.transcribe(recognition, media_id)
+        if text:
+            log.info(f"语音识别成功: {text[:50]}...")
+            await _process_and_reply(openid, text)
+        else:
+            await wechat.send_text(openid, "我没听清，能再说一遍吗？🎤")
+    except Exception as e:  # noqa: BLE001
+        log.exception("语音处理失败 openid=%s: %s", openid, e)
+        await wechat.send_text(openid, "语音识别出了点问题，我们先用文字聊吧！")
 
 
 @app.get("/healthz")

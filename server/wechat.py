@@ -1,76 +1,50 @@
-"""微信服务号接入层：验签 / XML 解析 / access_token 缓存 / 客服消息下发。
+# -*- coding: utf-8 -*-
+"""微信服务号接入层：验签 / AES 加解密 / XML 解析 / access_token 缓存 / 客服消息下发。
 
-注意：支持明文/兼容/安全模式。安全模式（AES）通过 WECHAT_AES_KEY 自动启用。
+注意：支持「安全模式」(AES) 和「明文模式」。根据 query param encrypt_type 自动切换。
 """
 from __future__ import annotations
 
-import base64
 import hashlib
+import json
 import logging
-import os
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import padding
-
 import httpx
+from wechatpy.crypto import WeChatCrypto
 
 from .config import settings
 
 log = logging.getLogger("wechat")
 API = "https://api.weixin.qq.com/cgi-bin"
 
+_crypto: WeChatCrypto | None = None
 
 
+def _get_crypto() -> WeChatCrypto | None:
+    """惰性初始化 AES 加解密实例。"""
+    global _crypto
+    if _crypto is not None:
+        return _crypto
+    if settings.wechat_aes_key and settings.wechat_token and settings.wechat_appid:
+        _crypto = WeChatCrypto(settings.wechat_token, settings.wechat_aes_key, settings.wechat_appid)
+        return _crypto
+    return None
+
+
+def decrypt_message(body: bytes, msg_signature: str, timestamp: str, nonce: str) -> bytes:
+    """AES 解密，返回明文 XML。"""
+    crypto = _get_crypto()
+    if crypto is None:
+        raise RuntimeError("AES 解密失败：WECHAT_AES_KEY 未配置")
+    return crypto.decrypt_message(body, msg_signature, timestamp, nonce)
 
 
 def verify_signature(signature: str, timestamp: str, nonce: str) -> bool:
     raw = "".join(sorted([settings.wechat_token, timestamp, nonce]))
     return hashlib.sha1(raw.encode()).hexdigest() == signature
-
-
-def verify_msg_signature(msg_signature: str, token: str, timestamp: str, nonce: str, encrypted: str) -> bool:
-    """安全模式：msg_signature = SHA1(token + timestamp + nonce + encrypted)。"""
-    raw = "".join([token, timestamp, nonce, encrypted])
-    return hashlib.sha1(raw.encode()).hexdigest() == msg_signature
-
-
-def _aes_key() -> bytes:
-    return base64.b64decode(settings.wechat_aes_key + "=")
-
-
-def decrypt_aes(encrypted_base64: str, appid: str) -> str:
-    """解密微信 AES 加密消息，返回 XML 明文。"""
-    key = _aes_key()
-    raw = base64.b64decode(encrypted_base64)
-    cipher = Cipher(algorithms.AES(key), modes.CBC(key[:16]))
-    decryptor = cipher.decryptor()
-    padded = decryptor.update(raw) + decryptor.finalize()
-    # PKCS7 unpad
-    pad_len = padded[-1]
-    content = padded[:-pad_len]
-    # 微信格式：random(16) + length(4, big-endian) + xml + appid
-    msg_len = int.from_bytes(content[16:20], "big")
-    xml_text = content[20:20 + msg_len].decode("utf-8")
-    got_appid = content[20 + msg_len:].decode("utf-8")
-    if got_appid != appid:
-        raise ValueError(f"AES 解密 appid 不匹配: got={got_appid}, expected={appid}")
-    return xml_text
-
-
-def encrypt_aes(xml_text: str, appid: str) -> str:
-    """加密回复 XML（安全模式），返回 base64。"""
-    key = _aes_key()
-    random_bytes = os.urandom(16)
-    msg_len = len(xml_text.encode("utf-8"))
-    raw = random_bytes + msg_len.to_bytes(4, "big") + xml_text.encode("utf-8") + appid.encode("utf-8")
-    padder = padding.PKCS7(128).padder()
-    padded = padder.update(raw) + padder.finalize()
-    cipher = Cipher(algorithms.AES(key), modes.CBC(key[:16]))
-    encryptor = cipher.encryptor()
-    return base64.b64encode(encryptor.update(padded) + encryptor.finalize()).decode()
 
 
 @dataclass
@@ -80,10 +54,10 @@ class InboundMsg:
     to_user: str
     content: str = ""
     event: str = ""        # subscribe / unsubscribe ...
-    media_id: str = ""
-    recognition: str = ""  # 公众平台开启「接收语音识别结果」后微信附带
     msg_id: str = ""
     create_time: str = ""
+    recognition: str = ""  # 语音识别结果（微信自带ASR）
+    media_id: str = ""     # 语音/视频/图片等媒体ID
 
 
 def parse_xml(body: bytes) -> InboundMsg:
@@ -95,29 +69,10 @@ def parse_xml(body: bytes) -> InboundMsg:
         to_user=g("ToUserName"),
         content=g("Content"),
         event=g("Event"),
-        media_id=g("MediaId"),
-        recognition=g("Recognition"),
         msg_id=g("MsgId") or f"{g('FromUserName')}-{g('CreateTime')}-{g('Event')}",
         create_time=g("CreateTime"),
-    )
-
-
-def build_encrypted_reply(to_user: str, from_user: str, content: str, nonce: str) -> str:
-    """安全模式：回复内容用 AES 加密后包装。"""
-    timestamp = str(int(time.time()))
-    encrypted = encrypt_aes(content, to_user)
-    raw = "".join([settings.wechat_token, timestamp, nonce, encrypted])
-    msg_signature = hashlib.sha1(raw.encode()).hexdigest()
-    return (
-        "<xml>"
-        f"<ToUserName><![CDATA[{to_user}]]></ToUserName>"
-        f"<FromUserName><![CDATA[{from_user}]]></FromUserName>"
-        f"<CreateTime>{timestamp}</CreateTime>"
-        f"<MsgType><![CDATA[text]]></MsgType>"
-        f"<Encrypt><![CDATA[{encrypted}]]></Encrypt>"
-        f"<MsgSignature><![CDATA[{msg_signature}]]></MsgSignature>"
-        f"<Nonce><![CDATA[{nonce}]]></Nonce>"
-        "</xml>"
+        recognition=g("Recognition"),  # 语音识别结果
+        media_id=g("MediaId"),        # 媒体文件ID
     )
 
 
@@ -167,10 +122,13 @@ async def send_text(openid: str, content: str) -> None:
     token = await token_manager.get()
     async with httpx.AsyncClient(timeout=15) as client:
         for chunk in chunks:
+            body = json.dumps({"touser": openid, "msgtype": "text", "text": {"content": chunk}},
+                            ensure_ascii=False)
             r = await client.post(
                 f"{API}/message/custom/send",
                 params={"access_token": token},
-                json={"touser": openid, "msgtype": "text", "text": {"content": chunk}},
+                content=body,
+                headers={"Content-Type": "application/json; charset=utf-8"},
             )
             data = r.json()
             if data.get("errcode"):
@@ -190,37 +148,3 @@ def _split_utf8(text: str, max_bytes: int) -> list[str]:
     if buf:
         out.append("".join(buf))
     return out or [""]
-
-
-async def download_media(media_id: str) -> bytes:
-    token = await token_manager.get()
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.get(f"{API}/media/get",
-                             params={"access_token": token, "media_id": media_id})
-        r.raise_for_status()
-        return r.content
-
-
-async def upload_voice(audio: bytes, filename: str = "reply.mp3") -> str:
-    """上传临时素材（voice，3天有效）→ media_id。"""
-    token = await token_manager.get()
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(f"{API}/media/upload",
-                              params={"access_token": token, "type": "voice"},
-                              files={"media": (filename, audio, "audio/mpeg")})
-        data = r.json()
-    if "media_id" not in data:
-        raise RuntimeError(f"上传语音素材失败: {data}")
-    return data["media_id"]
-
-
-async def send_voice(openid: str, media_id: str) -> None:
-    token = await token_manager.get()
-    async with httpx.AsyncClient(timeout=15) as client:
-        r = await client.post(f"{API}/message/custom/send",
-                              params={"access_token": token},
-                              json={"touser": openid, "msgtype": "voice",
-                                    "voice": {"media_id": media_id}})
-        data = r.json()
-        if data.get("errcode"):
-            raise RuntimeError(f"语音客服消息失败: {data}")

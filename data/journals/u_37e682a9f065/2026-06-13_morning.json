@@ -1,0 +1,33 @@
+{
+  "user_id": "u_37e682a9f065",
+  "date": "2026-06-13",
+  "period": "morning",
+  "extracted": {
+    "perma": {
+      "P": 5,
+      "E": 5,
+      "R": 6,
+      "M": 5,
+      "A": 5
+    },
+    "strengths_called": [
+      "好奇心"
+    ],
+    "flow_moments": [
+      "吃第一口早饭时专注感受味道"
+    ],
+    "emotional_arc": {
+      "dominant": "平静",
+      "secondary": "好奇"
+    },
+    "rewrite_event": null,
+    "gratitude": null
+  },
+  "session_meta": {
+    "rounds": 5,
+    "duration_seconds": 0,
+    "trigger": "wechat",
+    "model": "deepseek"
+  },
+  "saved_at": "2026-06-13T08:17:22.356935"
+}

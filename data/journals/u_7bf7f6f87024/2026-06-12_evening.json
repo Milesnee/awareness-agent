@@ -1,0 +1,37 @@
+{
+  "user_id": "u_7bf7f6f87024",
+  "date": "2026-06-12",
+  "period": "evening",
+  "extracted": {
+    "perma": {
+      "P": 6,
+      "E": 5,
+      "R": 6,
+      "M": 6,
+      "A": 5
+    },
+    "strengths_called": [
+      "善良",
+      "社交智慧"
+    ],
+    "flow_moments": null,
+    "emotional_arc": {
+      "dominant": "平静",
+      "secondary": "好奇"
+    },
+    "rewrite_event": {
+      "occurred": true,
+      "old_pattern": "过于在意他人感受而不敢行动",
+      "new_response": "同意尝试先问自己‘这句话有没有恶意’后再发消息",
+      "technique": "行为实验"
+    },
+    "gratitude": null
+  },
+  "session_meta": {
+    "rounds": 5,
+    "duration_seconds": 0,
+    "trigger": "wechat",
+    "model": "deepseek"
+  },
+  "saved_at": "2026-06-12T22:43:14.292990"
+}

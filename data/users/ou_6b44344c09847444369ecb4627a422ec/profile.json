@@ -1,0 +1,44 @@
+{
+  "user_id": "ou_6b44344c09847444369ecb4627a422ec",
+  "created": "2026-06-12T21:22:29.175880",
+  "persona": {
+    "nickname": "Miles",
+    "life_context": "",
+    "communication_style": "简洁直接，口语化"
+  },
+  "perma_baseline": {
+    "P_positive_emotion": {
+      "score": null
+    },
+    "E_engagement": {
+      "score": null
+    },
+    "R_relationships": {
+      "score": null
+    },
+    "M_meaning": {
+      "score": null
+    },
+    "A_accomplishment": {
+      "score": null
+    }
+  },
+  "character_strengths": {
+    "signature": [],
+    "top_5": [],
+    "usage_count": {}
+  },
+  "progress": {
+    "total_sessions": 0,
+    "total_mornings": 0,
+    "total_evenings": 0,
+    "current_streak": 0,
+    "longest_streak": 0,
+    "milestones_unlocked": [],
+    "last_active_date": null
+  },
+  "preferences": {
+    "morning_remind_time": "08:00",
+    "evening_remind_time": "21:30"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "u_3e10d0543fb1",
+  "date": "2026-06-12",
+  "period": "evening",
+  "extracted": {
+    "perma": {
+      "P": 6,
+      "E": 5,
+      "R": 6,
+      "M": 6,
+      "A": 5
+    },
+    "strengths_called": [
+      "毅力"
+    ],
+    "flow_moments": [],
+    "emotional_arc": {
+      "dominant": "平静",
+      "secondary": ""
+    },
+    "rewrite_event": null,
+    "gratitude": null
+  },
+  "session_meta": {
+    "rounds": 5,
+    "duration_seconds": 0,
+    "trigger": "wechat",
+    "model": "mock"
+  },
+  "saved_at": "2026-06-12T21:58:19.098300"
+}

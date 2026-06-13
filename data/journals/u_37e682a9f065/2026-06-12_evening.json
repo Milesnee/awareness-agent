@@ -1,0 +1,33 @@
+{
+  "user_id": "u_37e682a9f065",
+  "date": "2026-06-12",
+  "period": "evening",
+  "extracted": {
+    "perma": {
+      "P": 7,
+      "E": 6,
+      "R": 6,
+      "M": 5,
+      "A": 8
+    },
+    "strengths_called": [
+      "创造力"
+    ],
+    "flow_moments": [
+      "忙着创作时全情投入"
+    ],
+    "emotional_arc": {
+      "dominant": "愉悦",
+      "secondary": "平静"
+    },
+    "rewrite_event": null,
+    "gratitude": null
+  },
+  "session_meta": {
+    "rounds": 5,
+    "duration_seconds": 0,
+    "trigger": "wechat",
+    "model": "deepseek"
+  },
+  "saved_at": "2026-06-12T22:51:19.734214"
+}

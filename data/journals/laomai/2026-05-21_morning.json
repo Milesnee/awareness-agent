@@ -1,0 +1,32 @@
+{
+  "user_id": "laomai",
+  "date": "2026-05-21",
+  "period": "morning",
+  "extracted": {
+    "perma": {
+      "P": 7,
+      "E": 6,
+      "R": 6,
+      "M": 7,
+      "A": 5
+    },
+    "strengths_called": [
+      "毅力",
+      "好奇心"
+    ],
+    "flow_moments": [],
+    "emotional_arc": {
+      "dominant": "期待",
+      "secondary": "轻微焦虑"
+    },
+    "rewrite_event": null,
+    "gratitude": null
+  },
+  "session_meta": {
+    "rounds": 3,
+    "duration_seconds": 45,
+    "trigger": "heartbeat",
+    "model": "deepseek-v4-pro"
+  },
+  "saved_at": "2026-06-12T12:50:27.535471"
+}

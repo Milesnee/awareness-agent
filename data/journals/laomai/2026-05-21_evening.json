@@ -1,0 +1,40 @@
+{
+  "user_id": "laomai",
+  "date": "2026-05-21",
+  "period": "evening",
+  "extracted": {
+    "perma": {
+      "P": 6,
+      "E": 7,
+      "R": 5,
+      "M": 6,
+      "A": 8
+    },
+    "strengths_called": [
+      "毅力",
+      "创造力",
+      "自我调节"
+    ],
+    "flow_moments": [
+      "上午写代码完全沉浸了2小时"
+    ],
+    "emotional_arc": {
+      "dominant": "满足",
+      "secondary": "轻微焦虑"
+    },
+    "rewrite_event": {
+      "occurred": true,
+      "old_pattern": "被消息打断后烦躁，然后刷手机逃避",
+      "new_response": "今天被打断后，先深呼吸，告诉自己'先把手头这个函数写完'，然后真的做到了",
+      "technique": "带着不想做的感觉做一小步"
+    },
+    "gratitude": "下午和老朋友通了电话，聊得很开心"
+  },
+  "session_meta": {
+    "rounds": 5,
+    "duration_seconds": 120,
+    "trigger": "heartbeat",
+    "model": "deepseek-v4-pro"
+  },
+  "saved_at": "2026-06-12T12:50:27.604838"
+}

@@ -1,0 +1,30 @@
+{
+  "user_id": "u_3e10d0543fb1",
+  "created_at": "2026-06-12",
+  "perma_baseline": {
+    "P": 6.0,
+    "E": 5.0,
+    "R": 6.0,
+    "M": 6.0,
+    "A": 5.0
+  },
+  "signature_strengths": [
+    "毅力"
+  ],
+  "dominant_states": {},
+  "state_history": [
+    {
+      "date": "2026-06-12",
+      "dominant": "平静"
+    },
+    {
+      "date": "2026-06-12",
+      "dominant": "平静"
+    }
+  ],
+  "preferences": {},
+  "perma_record_count": 2,
+  "strengths_frequency": {
+    "毅力": 2
+  }
+}

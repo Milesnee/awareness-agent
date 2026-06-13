@@ -44,16 +44,28 @@ async def inbound(request: Request, background: BackgroundTasks,
                   msg_signature: str = Query("")):
     body = await request.body()
 
+    # 调试日志
+    log.info(f"Received wechat request: encrypt_type={encrypt_type}, signature_len={len(signature)}, msg_signature_len={len(msg_signature)}")
+    log.info(f"Body length: {len(body)}, body preview: {body.decode()[:100] if body else 'empty'}")
+
     # 安全模式/兼容模式：先解密
     is_encrypted = encrypt_type.lower() == "aes"
     if is_encrypted:
+        log.info(f"Processing encrypted message, token={settings.wechat_token}")
         if not wechat.verify_msg_signature(msg_signature, settings.wechat_token,
                                             timestamp, nonce, body.decode()):
+            log.error(f"Signature verification failed for encrypted message")
             return Response(content="forbidden", status_code=403)
-        xml_text = wechat.decrypt_aes(body.decode(), settings.wechat_appid)
-        body = xml_text.encode("utf-8")
+        try:
+            xml_text = wechat.decrypt_aes(body.decode(), settings.wechat_appid)
+            body = xml_text.encode("utf-8")
+            log.info(f"Successfully decrypted message, xml preview: {xml_text[:100]}")
+        except Exception as e:
+            log.error(f"Decryption failed: {e}")
+            return Response(content="decryption_error", status_code=500)
     else:
         if not wechat.verify_signature(signature, timestamp, nonce):
+            log.error(f"Signature verification failed for plain message")
             return Response(content="forbidden", status_code=403)
 
     msg = wechat.parse_xml(body)

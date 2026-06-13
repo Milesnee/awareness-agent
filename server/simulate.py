@@ -25,6 +25,16 @@ def sig_params(token: str = "testtoken") -> dict:
     return {"signature": sig, "timestamp": ts, "nonce": nonce}
 
 
+def make_voice_xml(openid: str, recognition: str = "") -> str:
+    rec = f"<Recognition><![CDATA[{recognition}]]></Recognition>" if recognition else ""
+    return (f"<xml><ToUserName><![CDATA[gh_test]]></ToUserName>"
+            f"<FromUserName><![CDATA[{openid}]]></FromUserName>"
+            f"<CreateTime>{int(time.time())}</CreateTime>"
+            f"<MsgType><![CDATA[voice]]></MsgType>"
+            f"<MediaId>FAKE_MEDIA</MediaId>{rec}"
+            f"<MsgId>{int(time.time()*1000)+7}</MsgId></xml>")
+
+
 def make_xml(openid: str, content: str = "", event: str = "", msg_id: str = "") -> str:
     if event:
         body = f"<MsgType><![CDATA[event]]></MsgType><Event><![CDATA[{event}]]></Event>"
@@ -129,7 +139,32 @@ def main() -> None:
     assert n2 == 0, "推送幂等失败"
     print("✅ 推送幂等（同日同槽不重发）通过")
 
-    print("\n🎉 微信网关本地仿真全链路通过（含记忆系统 + 推送调度）")
+    # 9) 语音：Recognition 转写 → 语音+文字回复（mock TTS）
+    voiced: list[bytes] = []
+    from . import voice as v
+    async def fake_upload(audio, filename="reply.mp3"):
+        voiced.append(audio); return "FAKE_MEDIA_OUT"
+    async def fake_send_voice(openid_, media_id):
+        assert media_id == "FAKE_MEDIA_OUT"
+    wechat.upload_voice = fake_upload
+    wechat.send_voice = fake_send_voice
+    v.wechat.upload_voice = fake_upload
+    v.wechat.send_voice = fake_send_voice
+    v.TTS_BASE_URL = "mock://"
+    before_txt = len(sent)
+    r = client.post("/wechat", params=sig_params(), content=make_voice_xml(openid, "早上有点烦躁不想开工"))
+    assert r.text == "success"
+    time.sleep(0.3)
+    assert len(sent) == before_txt + 1, "语音应附带文字回复"
+    assert voiced and voiced[0].startswith(b"MOCK_MP3"), "TTS 语音未生成"
+    print(f"✅ 语音链路 通过：Recognition→对话→语音+文字（{sent[-1][1][:30]}…）")
+    # 无 Recognition 且无 fallback → 引导文案
+    client.post("/wechat", params=sig_params(), content=make_voice_xml(openid, ""))
+    time.sleep(0.3)
+    assert "没听清" in sent[-1][1]
+    print("✅ 语音降级引导 通过")
+
+    print("\n🎉 微信网关本地仿真全链路通过（含记忆 + 推送 + 语音）")
 
 
 if __name__ == "__main__":

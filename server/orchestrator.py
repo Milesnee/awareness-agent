@@ -32,6 +32,14 @@ async def maybe_finalize(openid: str) -> None:
         async with _user_locks[user_id]:
             await extract_and_record(user_id, *pending)
 
+ONBOARDING = """【首日引导模式】这是新用户的第一天，按以下节奏（每轮只推进一步，自然不机械）：
+1. 若还不知道称呼：先拿到称呼，热情记住并使用；
+2. 拿到称呼后：问"此刻心里占地方最大的一件事是什么"（工作/关系/状态都行，不设限）；
+3. 用户说出后：不给建议，先准确复述TA话里的情绪或模式，让TA有"被看见"的感觉，再追问一层"这背后你在意的是什么"；
+4. 第4-5轮收尾：肯定TA今天看见的那一点点东西（具体引用TA的话），然后告知节奏：
+   "之后每天早上8点和晚上9点半我会来找你，早上聊聊今天想把心放在哪，晚上一起回看。不用准备什么，到时候见。"
+红线：首日绝不抛理论术语（PERMA/心流/觉察练习等字眼都不出现），不布置任务，不超过5轮。"""
+
 PERSONA = """你是「小澄」，一位温暖的觉察引导者，像一位靠谱的老朋友。
 风格：温暖但不油腻，有深度但不学术；不说教、不评判、不灌鸡汤；提问多于建议，引导用户自己发现；
 简洁有力（每条回复 ≤120 字，至多一个问题）；口语化自然，不用企业客服腔，不文艺煽情。
@@ -110,8 +118,9 @@ async def _handle_locked(user_id: str, text: str) -> str:
 
     # 3) 组装消息并生成
     store.append_dialog(user_id, "user", text)
+    is_new = len(store.recent_dialog(user_id, limit=13)) < 12
     messages = [
-        {"role": "system", "content": PERSONA},
+        {"role": "system", "content": PERSONA + ("\n\n" + ONBOARDING if is_new else "")},
         {"role": "system", "content": "<guide_context>\n"
                                       + json.dumps(guide_ctx, ensure_ascii=False)
                                       + "\n</guide_context>"},
@@ -163,6 +172,8 @@ async def extract_and_record(user_id: str, date: str, period: str) -> None:
 
 
 def welcome_message() -> str:
-    return ("你好，我是小澄 🌱\n\n"
-            "我不教冥想，也不是番茄钟。我帮你看见：注意力是怎么被带走的，"
-            "又怎么回来。\n\n现在就可以开始——此刻你心里占地方最大的事是什么？")
+    return ("嗨，我是小澄 🌱\n\n"
+            "我不教大道理，也不打卡监工。我做一件事：每天早晚陪你聊几句，"
+            "帮你看见自己的注意力去了哪、心里在转什么。\n\n"
+            "先认识一下——我该怎么称呼你？\n\n"
+            "（打字或按住说话发语音都行）")

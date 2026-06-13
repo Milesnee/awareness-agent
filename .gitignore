@@ -16,6 +16,20 @@ venv/
 *.db-shm
 *.db-wal
 
+# User data (JSON storage)
+data/journals/
+data/profiles/
+data/streaks/
+data/stats/
+data/sessions/
+data/daily_context/
+data/tasks/
+data/users/*/journals/
+data/users/*/sessions/
+data/users/*/stats/
+data/users/*/profile.json
+data/users/*/insights/
+
 # Logs
 *.log
 logs/

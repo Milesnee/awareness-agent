@@ -22,7 +22,14 @@ Input schema (JSON via stdin or --data):
       "new_response": "...",
       "technique": "..."
     } | null,
-    "gratitude": "..." | null
+    "gratitude": "..." | null,
+    "energy_marker": {
+      "rating": "up" | "flat" | "down",
+      "items": [
+        {"activity": "...", "direction": "up"|"flat"|"down", "note": "..."},
+        ...
+      ]
+    } | null
   },
   "session_meta": {
     "rounds": int,
@@ -39,6 +46,7 @@ Output (JSON to stdout):
   "streak_updated": {"current": 8, "milestone": "🎋", "milestone_name": "茂盛"},
   "data_quality": {"perma_complete": true, "rewrite_captured": true, "score": 0.95},
   "new_insight_triggers": ["P连续3天上升", "首次识别签名优势'创造力'"],
+  "energy_recorded": true,
   "validation_warnings": [...]
 }
 """
@@ -131,6 +139,16 @@ def validate_input(data: dict) -> list[str]:
         if not rewrite.get("new_response"):
             warnings.append("改写事件标记为已发生但缺少 new_response")
 
+    # Energy marker validation
+    energy = extracted.get("energy_marker")
+    if energy:
+        valid_ratings = {"up", "flat", "down"}
+        if energy.get("rating") and energy["rating"] not in valid_ratings:
+            warnings.append(f"energy_marker.rating 值无效: {energy['rating']}（应为 up/flat/down）")
+        for item in energy.get("items", []):
+            if item.get("direction") and item["direction"] not in valid_ratings:
+                warnings.append(f"energy_marker.items[].direction 值无效: {item['direction']}")
+
     return warnings
 
 
@@ -150,13 +168,16 @@ def compute_data_quality(extracted: dict, period: str) -> dict:
 
     has_gratitude = bool(extracted.get("gratitude"))
 
+    has_energy = bool(extracted.get("energy_marker"))
+
     # Weighted scoring
     score = 0.0
     score += 0.35 if perma_complete else (0.1 * sum(1 for d in PERMA_DIMS if d in perma))
     score += 0.15 if has_strengths else 0
     score += 0.10 if has_flow else 0
     score += 0.10 if has_emotion else 0
-    score += 0.10 if has_gratitude else 0
+    score += 0.05 if has_gratitude else 0
+    score += 0.05 if has_energy else 0
     score += 0.20 if (period == "morning" or (period == "evening" and rewrite_complete)) else (0.10 if rewrite_captured else 0)
 
     return {
@@ -306,6 +327,21 @@ def detect_insight_triggers(user_id: str, date_str: str, extracted: dict) -> lis
     elif len(rewrites) >= 3:
         triggers.append(f"改写活跃：近7天发生{len(rewrites)}次改写")
 
+    # Energy marker pattern detection
+    energy_entries = []
+    for entry in recent[-7:]:
+        em = (entry.get("extracted") or {}).get("energy_marker")
+        if em and em.get("rating"):
+            energy_entries.append({"date": entry.get("date"), "rating": em["rating"]})
+
+    if len(energy_entries) >= 3:
+        down_count = sum(1 for e in energy_entries if e["rating"] == "down")
+        up_count = sum(1 for e in energy_entries if e["rating"] == "up")
+        if down_count >= 3:
+            triggers.append(f"能量连续偏低：近{len(energy_entries)}天中{down_count}天标记为↓消耗")
+        elif up_count >= 3:
+            triggers.append(f"能量状态良好：近{len(energy_entries)}天中{up_count}天标记为↑回流")
+
     return triggers
 
 
@@ -417,6 +453,7 @@ def main():
         "streak_updated": streak_info,
         "data_quality": quality,
         "new_insight_triggers": triggers,
+        "energy_recorded": bool(extracted.get("energy_marker")),
         "validation_warnings": warnings,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))

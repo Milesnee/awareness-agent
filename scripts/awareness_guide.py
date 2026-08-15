@@ -159,6 +159,50 @@ def compute_recent_patterns(entries: list[dict]) -> dict:
                     "max": max(vals),
                 }
 
+    # Energy marker aggregation
+    energy_series = []
+    for e in entries:
+        em = (e.get("extracted") or {}).get("energy_marker")
+        if em and em.get("rating"):
+            energy_series.append({"date": e["date"], "period": e.get("period"), "rating": em["rating"], "items": em.get("items", [])})
+
+    energy_summary = None
+    if energy_series:
+        up_count = sum(1 for e in energy_series if e["rating"] == "up")
+        flat_count = sum(1 for e in energy_series if e["rating"] == "flat")
+        down_count = sum(1 for e in energy_series if e["rating"] == "down")
+        # Collect all activities mentioned across entries
+        up_activities = []
+        down_activities = []
+        for e in energy_series:
+            for item in e.get("items", []):
+                activity = item.get("activity", "未知")
+                if item.get("direction") == "up":
+                    up_activities.append(activity)
+                elif item.get("direction") == "down":
+                    down_activities.append(activity)
+        from collections import Counter
+        top_up = Counter(up_activities).most_common(3)
+        top_down = Counter(down_activities).most_common(3)
+        # Overall trend
+        if len(energy_series) >= 3:
+            recent_half = energy_series[len(energy_series)//2:]
+            recent_down = sum(1 for e in recent_half if e["rating"] == "down")
+            energy_trend = "draining" if recent_down > len(recent_half) / 2 else ("charging" if sum(1 for e in recent_half if e["rating"] == "up") > len(recent_half) / 2 else "mixed")
+        else:
+            energy_trend = "insufficient_data"
+
+        energy_summary = {
+            "total_entries": len(energy_series),
+            "up": up_count,
+            "flat": flat_count,
+            "down": down_count,
+            "trend": energy_trend,
+            "top_charging_activities": [{"activity": a, "count": c} for a, c in top_up],
+            "top_draining_activities": [{"activity": a, "count": c} for a, c in top_down],
+            "recent_ratings": [{"date": e["date"], "rating": e["rating"]} for e in energy_series[-7:]],
+        }
+
     return {
         "available": True,
         "days_recorded": len(set(e["date"] for e in entries)),
@@ -167,6 +211,7 @@ def compute_recent_patterns(entries: list[dict]) -> dict:
         "recent_states": states[-5:] if states else [],
         "recent_rewrites": rewrites[-3:] if rewrites else [],
         "gaps": gaps,
+        "energy_summary": energy_summary,
         "last_entry": entries[-1]["date"] if entries else None,
     }
 
@@ -290,6 +335,16 @@ def detect_intervention_flags(profile: dict, patterns: dict, streak: dict) -> li
             "action": "晚间引导中增强改写机会识别",
         })
 
+    # Energy draining detection
+    energy = patterns.get("energy_summary")
+    if energy and energy.get("trend") == "draining":
+        flags.append({
+            "level": "gentle",
+            "type": "energy_draining",
+            "detail": f"近期能量持续消耗（↓{energy['down']}次 vs ↑{energy['up']}次），主要消耗源：{', '.join(a['activity'] for a in energy.get('top_draining_activities', [])[:2])}",
+            "action": "引导关注能量回流：今天有什么事让你忘时间？（心流=充电站）",
+        })
+
     return flags
 
 
@@ -356,6 +411,9 @@ def determine_dont_do(flags: list[dict], period: str) -> list[str]:
             donts.append("用学术语言分析用户状态")
         if flag["type"] == "no_rewrite":
             donts.append("评价用户'没有进步'")
+        if flag["type"] == "energy_draining":
+            donts.append("强行要求用户'振作起来'")
+            donts.append("列举更多待办事项增加压力")
 
     # Universal don'ts
     donts.extend([
@@ -485,6 +543,7 @@ def main():
                 "recent_states": profile.get("state_history", [])[-5:],
             },
             "recent_patterns": patterns,
+            "energy_summary": patterns.get("energy_summary"),
             "state_context": {
                 "user_reply": user_reply,
                 "period": period,
